@@ -1,0 +1,120 @@
+// Coder-specific devcontainer configuration.
+//
+// This file is used by Coder (see config_path in coder_devcontainer in
+// main.tf). The sibling .devcontainer/devcontainer.json is used by local
+// VS Code, so the same repository works in both environments.
+//
+// For format details, see https://aka.ms/devcontainer.json.
+{
+  "name": "Coder (Node.js)",
+  // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24",
+
+  // Mount the parent container's $HOME (ZFS-backed, per-owner) so SSH keys,
+  // git config and IDE/AI settings are available inside the devcontainer.
+  // In Coder's DinD setup the inner Docker daemon's host filesystem is the
+  // parent container, so a plain bind mount reaches the ZFS share.
+  // Target is /home/node because that is the default HOME of the "node"
+  // user shipped by the devcontainers/javascript-node image (UID 1000,
+  // matching the parent container's "coder" user, so the bind is writable).
+  "mounts": ["source=/home/coder,target=/home/node,type=bind"],
+
+  // Run as the image's non-root user (node, UID 1000). Matches the parent
+  // container's coder user (UID 1000), so the bind-mounted home is writable.
+  "remoteUser": "node",
+
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  "features": {
+    // Common utilities (zsh, oh-my-zsh, non-root user setup). This is a
+    // dependency of the code-server feature; declaring it explicitly lets us
+    // pin the user to match the parent container.
+    //
+    // The devcontainers/javascript-node image already ships user "node"
+    // with UID/GID 1000, which matches the parent container's "coder" user
+    // (also UID/GID 1000). We pin username/UID/GID explicitly so the
+    // bind-mounted /home/node (ZFS-backed) stays writable and ownership
+    // is consistent across parent and devcontainer.
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "username": "node",
+      "userUid": "1000",
+      "userGid": "1000",
+      "installZsh": true,
+      "configureZshAsDefaultShell": true,
+      "installOhMyZsh": true,
+      "installOhMyZshConfig": true,
+      "upgradePackages": false
+    },
+
+    // Runs code-server inside the devcontainer for browser-based VS Code.
+    // This is the primary IDE in Coder. The parent container also runs a
+    // separate code-server as a fallback (see the code-server module in main.tf).
+    //
+    // Extensions are not pre-installed; install them manually via the
+    // code-server UI. They persist on the ZFS-backed per-owner home and
+    // are shared across all workspaces of the same user.
+    "ghcr.io/coder/devcontainer-features/code-server:2": {
+      "auth": "none",
+      "workspace": "${containerWorkspaceFolder}",
+      "appName": "Coder",
+      "disableTelemetry": true,
+      "disableUpdateCheck": true,
+      "disableWorkspaceTrust": true,
+      "disableProxy": true,
+      "appOpenIn": "tab",
+      "appGroup": ""
+    },
+
+    // opencode — the open source coding agent.
+    // Installed via GitHub releases at build time.
+    // https://github.com/devcontainer-community/devcontainer-features/tree/main/src/opencode.ai
+    "ghcr.io/devcontainer-community/devcontainer-features/opencode.ai:1": {
+      "version": "latest"
+    },
+
+    "ghcr.io/aqua/devcontainer-antigravity-cli/antigravity-cli": {}
+  },
+
+  // Configure tool-specific properties.
+  // code-server is a VS Code fork and reads the "vscode" customization key.
+  // Settings (but not extensions) are still applied here; extensions are
+  // installed via the code-server feature above for faster workspace start.
+  //
+  // The "coder" block customizes how Coder manages this dev container:
+  // https://coder.com/docs/user-guides/devcontainers/customizing-dev-containers
+  "customizations": {
+    // Configure properties specific to VS Code / code-server.
+    "vscode": {
+      "settings": {}
+    },
+    // Coder-specific options. "name" sets the sub-agent name shown in the
+    // dashboard and used by `coder ssh <workspace>.<name>`. Without it
+    // Coder derives the name from the workspace folder path (e.g.
+    // "vscode-remote-try-node"), which is noisy. Only lowercase letters,
+    // numbers, and hyphens are allowed.
+    "coder": {
+      "name": "devcontainer"
+    }
+  },
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  // "forwardPorts": [3000],
+
+  // Use 'portsAttributes' to set default properties for specific forwarded ports.
+  // More info: https://containers.dev/implementors/json_reference/#port-attributes
+  "portsAttributes": {
+    "3000": {
+      "label": "Hello Remote World",
+      "onAutoForward": "notify"
+    }
+  },
+
+  // Use 'postCreateCommand' to run commands after the container is created.
+  // Runs once per devcontainer creation as the remote user (node, UID 1000),
+  // writing to /home/node which is the ZFS-backed per-owner home bind-mounted
+  // from the parent container. Installed binaries and config persist across
+  // workspace rebuilds.
+  "postCreateCommand": "npm install"
+
+  // Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+  // "remoteUser": "root"
+}
